@@ -1,0 +1,598 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTHENTICATION & USER MODELS
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  emailVerified   DateTime?
+  password        String?
+  name            String?
+  image           String?
+  role            String    @default("jobseeker") // jobseeker, recruiter, admin
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastActiveAt    DateTime  @default(now())
+  onboardingComplete Boolean @default(false)
+
+  // Relations
+  accounts        Account[]
+  sessions        Session[]
+  profile         Profile?
+  company         Company?         @relation("CompanyOwner")
+  companyMember   CompanyMember?
+  jobPostings     Job[]            @relation("JobPoster")
+  applications    Application[]
+  sentSwipes      Swipe[]          @relation("SwipeSender")
+  receivedSwipes  Swipe[]          @relation("SwipeReceiver")
+  matches         Match[]          @relation("MatchUser1")
+  matchesReceived Match[]          @relation("MatchUser2")
+  sentMessages    Message[]        @relation("MessageSender")
+  receivedMessages Message[]       @relation("MessageReceiver")
+  notifications   Notification[]
+  savedJobs       SavedJob[]
+  savedCandidates SavedCandidate[]
+  subscription    Subscription?
+  aiCredits       Int              @default(10)
+  profileViews    ProfileView[]    @relation("ProfileViewer")
+  profileViewsReceived ProfileView[] @relation("ProfileViewed")
+  activityLogs    ActivityLog[]
+  skills          UserSkill[]
+  experience      Experience[]
+  education       Education[]
+  preferences     JobPreference?
+  resumeAnalysis  ResumeAnalysis?
+}
+
+// ============================================
+// PROFILE & PROFESSIONAL INFO
+// ============================================
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  headline        String?
+  bio             String?
+  location        String?
+  phone           String?
+  website         String?
+  linkedinUrl     String?
+  githubUrl       String?
+  portfolioUrl    String?
+  resumeUrl       String?
+  avatarUrl       String?
+  coverImageUrl   String?
+  yearsOfExperience Int?
+  currentSalary   Int?
+  expectedSalary  Int?
+  noticePeriod    String?
+  availableFrom   DateTime?
+  isOpenToWork    Boolean  @default(true)
+  isRemoteOnly    Boolean  @default(false)
+  willingToRelocate Boolean @default(false)
+  preferredLocations String? // JSON array stored as string
+  languages       String?  // JSON array stored as string
+  certifications  String?  // JSON array stored as string
+  achievements    String?
+  videoIntroUrl   String?
+  completionScore Int      @default(0)
+  aiSummary       String?
+  aiStrengths     String?  // JSON array
+  aiImprovements  String?  // JSON array
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSkill {
+  id            String   @id @default(cuid())
+  userId        String
+  skillId       String
+  proficiency   String   @default("intermediate") // beginner, intermediate, advanced, expert
+  yearsUsed     Int?
+  isTopSkill    Boolean  @default(false)
+  endorsements  Int      @default(0)
+  aiVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  @@unique([userId, skillId])
+}
+
+model Skill {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  category    String?
+  isPopular   Boolean     @default(false)
+  userSkills  UserSkill[]
+  jobSkills   JobSkill[]
+}
+
+model Experience {
+  id            String    @id @default(cuid())
+  userId        String
+  title         String
+  company       String
+  companyLogo   String?
+  location      String?
+  locationType  String?   // onsite, remote, hybrid
+  employmentType String?  // full-time, part-time, contract, internship
+  startDate     DateTime
+  endDate       DateTime?
+  isCurrent     Boolean   @default(false)
+  description   String?
+  achievements  String?   // JSON array
+  skills        String?   // JSON array of skill names
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Education {
+  id            String    @id @default(cuid())
+  userId        String
+  institution   String
+  degree        String?
+  fieldOfStudy  String?
+  grade         String?
+  startDate     DateTime?
+  endDate       DateTime?
+  isCurrent     Boolean   @default(false)
+  description   String?
+  activities    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JobPreference {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  jobTypes            String?  // JSON array: full-time, part-time, contract, freelance
+  experienceLevels    String?  // JSON array: entry, mid, senior, lead, executive
+  industries          String?  // JSON array
+  preferredRoles      String?  // JSON array
+  minSalary           Int?
+  maxSalary           Int?
+  preferredLocations  String?  // JSON array
+  remotePreference    String?  // onsite, remote, hybrid, any
+  companySize         String?  // JSON array: startup, small, medium, large, enterprise
+  benefits            String?  // JSON array of important benefits
+  dealBreakers        String?  // JSON array
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ResumeAnalysis {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  originalText    String?
+  parsedData      String?  // JSON with structured resume data
+  aiScore         Int?
+  aiSummary       String?
+  keySkills       String?  // JSON array
+  suggestedRoles  String?  // JSON array
+  improvements    String?  // JSON array of suggestions
+  keywords        String?  // JSON array of relevant keywords
+  atsScore        Int?     // ATS compatibility score
+  analyzedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// COMPANY & RECRUITER MODELS
+// ============================================
+
+model Company {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?
+  mission         String?
+  culture         String?
+  benefits        String?  // JSON array
+  techStack       String?  // JSON array
+  website         String?
+  linkedinUrl     String?
+  logo            String?
+  coverImage      String?
+  industry        String?
+  size            String?  // 1-10, 11-50, 51-200, 201-500, 501-1000, 1000+
+  founded         Int?
+  headquarters    String?
+  locations       String?  // JSON array
+  isVerified      Boolean  @default(false)
+  isPremium       Boolean  @default(false)
+  rating          Float?
+  reviewCount     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  ownerId         String   @unique
+  owner           User     @relation("CompanyOwner", fields: [ownerId], references: [id])
+  members         CompanyMember[]
+  jobs            Job[]
+  reviews         CompanyReview[]
+}
+
+model CompanyMember {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String   @unique
+  role      String   @default("recruiter") // admin, recruiter, hiring_manager
+  canPost   Boolean  @default(true)
+  canManage Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CompanyReview {
+  id              String   @id @default(cuid())
+  companyId       String
+  title           String
+  pros            String?
+  cons            String?
+  rating          Float
+  cultureRating   Float?
+  workLifeRating  Float?
+  compensationRating Float?
+  managementRating Float?
+  isCurrentEmployee Boolean @default(false)
+  employmentStatus String?
+  jobTitle        String?
+  isAnonymous     Boolean @default(true)
+  isVerified      Boolean @default(false)
+  helpfulCount    Int     @default(0)
+  createdAt       DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// JOB POSTING MODELS
+// ============================================
+
+model Job {
+  id                String    @id @default(cuid())
+  title             String
+  slug              String    @unique
+  description       String
+  requirements      String?
+  responsibilities  String?
+  benefits          String?   // JSON array
+  qualifications    String?   // JSON array
+  niceToHave        String?   // JSON array
+  companyId         String
+  posterId          String
+  location          String?
+  locationType      String    @default("onsite") // onsite, remote, hybrid
+  employmentType    String    @default("full-time") // full-time, part-time, contract, internship, freelance
+  experienceLevel   String    @default("mid") // entry, mid, senior, lead, executive
+  department        String?
+  minSalary         Int?
+  maxSalary         Int?
+  salaryPeriod      String?   @default("yearly") // hourly, monthly, yearly
+  currency          String    @default("USD")
+  showSalary        Boolean   @default(true)
+  applicationUrl    String?
+  applicationEmail  String?
+  status            String    @default("active") // draft, active, paused, closed, filled
+  isFeatured        Boolean   @default(false)
+  isUrgent          Boolean   @default(false)
+  viewCount         Int       @default(0)
+  applicationCount  Int       @default(0)
+  expiresAt         DateTime?
+  publishedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // AI-generated fields
+  aiMatchScore      Int?      // Average match score
+  aiSummary         String?
+  aiKeywords        String?   // JSON array
+  aiIdealCandidate  String?
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  poster        User          @relation("JobPoster", fields: [posterId], references: [id])
+  skills        JobSkill[]
+  applications  Application[]
+  swipes        Swipe[]
+  savedBy       SavedJob[]
+  matches       Match[]
+}
+
+model JobSkill {
+  id          String   @id @default(cuid())
+  jobId       String
+  skillId     String
+  isRequired  Boolean  @default(true)
+  importance  String   @default("medium") // low, medium, high, critical
+
+  job   Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  @@unique([jobId, skillId])
+}
+
+// ============================================
+// MATCHING & SWIPE SYSTEM
+// ============================================
+
+model Swipe {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String?  // For job seeker swiping on company/recruiter
+  jobId       String?  // For swipes on jobs
+  direction   String   // right (like), left (pass), up (super-like)
+  aiScore     Int?     // AI-calculated compatibility score
+  createdAt   DateTime @default(now())
+
+  sender   User  @relation("SwipeSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User? @relation("SwipeReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  job      Job?  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, jobId])
+  @@unique([senderId, receiverId])
+}
+
+model Match {
+  id            String    @id @default(cuid())
+  userId1       String    // Job seeker
+  userId2       String    // Recruiter
+  jobId         String?
+  status        String    @default("active") // active, archived, blocked
+  aiScore       Int?      // AI compatibility score
+  aiInsights    String?   // JSON with match insights
+  isViewed1     Boolean   @default(false)
+  isViewed2     Boolean   @default(false)
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user1    User      @relation("MatchUser1", fields: [userId1], references: [id], onDelete: Cascade)
+  user2    User      @relation("MatchUser2", fields: [userId2], references: [id], onDelete: Cascade)
+  job      Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@unique([userId1, userId2, jobId])
+}
+
+model Application {
+  id              String    @id @default(cuid())
+  userId          String
+  jobId           String
+  status          String    @default("pending") // pending, reviewed, shortlisted, interviewing, offered, hired, rejected, withdrawn
+  coverLetter     String?
+  resumeUrl       String?
+  answers         String?   // JSON for screening questions
+  aiScore         Int?
+  aiSummary       String?
+  aiRecommendation String?
+  notes           String?   // Recruiter notes
+  rejectionReason String?
+  offeredSalary   Int?
+  interviewDate   DateTime?
+  appliedAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  viewedAt        DateTime?
+  respondedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+}
+
+// ============================================
+// MESSAGING SYSTEM
+// ============================================
+
+model Message {
+  id          String    @id @default(cuid())
+  matchId     String
+  senderId    String
+  receiverId  String
+  content     String
+  messageType String    @default("text") // text, image, file, system, ai_suggestion
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  metadata    String?   // JSON for attachments, etc.
+  createdAt   DateTime  @default(now())
+
+  match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender   User  @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User  @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// SAVED ITEMS & BOOKMARKS
+// ============================================
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  notes     String?
+  savedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+}
+
+model SavedCandidate {
+  id          String   @id @default(cuid())
+  recruiterId String
+  candidateId String
+  jobId       String?
+  notes       String?
+  tags        String?  // JSON array
+  savedAt     DateTime @default(now())
+
+  recruiter User   @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([recruiterId, candidateId, jobId])
+}
+
+// ============================================
+// NOTIFICATIONS & ACTIVITY
+// ============================================
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    // match, message, application_update, profile_view, job_recommendation, system
+  title     String
+  message   String
+  data      String?   // JSON with additional data
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  actionUrl String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProfileView {
+  id        String   @id @default(cuid())
+  viewerId  String
+  viewedId  String
+  createdAt DateTime @default(now())
+
+  viewer User @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewed User @relation("ProfileViewed", fields: [viewedId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, viewedId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // swipe, match, message, profile_update, job_post, application, etc.
+  details   String?  // JSON with action details
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// SUBSCRIPTION & BILLING
+// ============================================
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  plan                 String    @default("free") // free, pro, premium, enterprise
+  status               String    @default("active") // active, canceled, past_due, trialing
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  trialEndsAt          DateTime?
+  features             String?   // JSON with enabled features
+  swipesRemaining      Int       @default(50)
+  superLikesRemaining  Int       @default(5)
+  boostsRemaining      Int       @default(1)
+  aiCreditsRemaining   Int       @default(10)
+  lastResetAt          DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// AI & ANALYTICS
+// ============================================
+
+model AIAnalysis {
+  id          String   @id @default(cuid())
+  entityType  String   // user, job, match
+  entityId    String
+  analysisType String  // compatibility, recommendation, optimization
+  input       String?  // JSON input data
+  output      String?  // JSON output data
+  score       Int?
+  model       String?
+  tokens      Int?
+  cost        Float?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  eventType   String
+  entityType  String?
+  entityId    String?
+  userId      String?
+  sessionId   String?
+  properties  String?  // JSON
+  createdAt   DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+}
